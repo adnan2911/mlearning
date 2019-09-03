@@ -1,0 +1,115 @@
+---
+title: "Machine Learning Project"
+author: "Adnan"
+date: "8/29/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background and Goal
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. We may use any of the other variables to predict with. We will create a report describing how we built our model, how we used cross validation, what we think the expected out of sample error is, and why we made the choices we did. We will also use our prediction model to predict 20 different test cases.
+
+## Data Loading
+```{r data_loading}
+training_data <- read.csv('pml-training.csv',na.strings=c("NA","#DIV/0!",""))
+testing_data <- read.csv('pml-testing.csv',na.strings=c("NA","#DIV/0!",""))
+dim(training_data)
+dim(testing_data)
+```
+
+
+## Data cleaning
+The first step should always be data cleaning
+Lets remove the columns that has all NAs as they can impact our analysis later on
+
+```{r data_cleaning_na}
+training_data <- training_data [colSums(!is.na(training_data)) > 0]
+testing_data <- testing_data [colSums(!is.na(testing_data)) > 0]
+dim(training_data)
+dim(testing_data)
+```
+
+Next we can remove the columns that shouldnt be counted in machine algorithm. From the column names we know that first 7 columns shouldnt be counted in our algorithms as they are either ids, timestamps etc and are not meaningful data for our outcome
+
+```{r data_cleaning_col}
+training_data <- training_data[,-c(1:7)]
+testing_data <- testing_data[,-c(1:7)]
+dim(training_data)
+dim(testing_data)
+```
+
+Next we can use nearZeroValue function remove columns that have almost zero variance or in other words remove columns that have no significant impact on the outcome
+```{r nzv_feature}
+library(caret)
+
+nzv_col_tr <-nearZeroVar(training_data,saveMetrics = TRUE)
+nzv_col_te <-nearZeroVar(testing_data,saveMetrics = TRUE)
+
+training_data <- training_data[,nzv_col_tr$nzv == "FALSE"]
+testing_data <- testing_data[,nzv_col_te$nzv == "FALSE"]
+dim(training_data)
+dim(testing_data)
+
+```
+## Harmonizing Column Variables
+Lets make sure that both training and testing data sets have same variables being used in order to get reliable results
+
+```{r harmonization}
+classe <- training_data[,'classe']
+training_data <- training_data[,colnames(training_data) %in% colnames(testing_data)]
+training_data<- cbind(training_data,classe)
+training_data$classe <- as.factor(training_data$classe)
+dim(training_data)
+
+```
+### Cross Validation
+```{r cross_validation}
+#library(caret)
+set.seed(1000)
+Intrain <- createDataPartition(y=training_data$classe,p=0.70,list=F)
+straining <- training_data[Intrain,]
+stesting <- training_data[-Intrain,]
+dim(straining)
+dim(stesting)
+```
+
+
+## Applying Machine Learning Algorithms
+### Decision Tree
+Lets first apply Decision Tree
+
+```{r decision_tree}
+library(rpart)
+library(rpart.plot)
+tree_model <- rpart(classe~.,data=straining, method='class')
+rpart.plot(tree_model, main="Classification Tree")
+```
+
+
+```{r prediction_1}
+prediction1 <- predict(tree_model, stesting , type='class')
+confusionMatrix(prediction1,stesting$classe)
+```
+
+### Random Forest
+Next lets what are the results we get with random forest 
+```{r random_forest}
+library(randomForest)
+forestmodel <- randomForest(classe~.,data= straining, na.action=na.roughfix, method="class")
+prediction2 <- predict(forestmodel, stesting , type='class')
+confusionMatrix(prediction2,stesting$classe)
+```
+
+### Conclusion 
+Forest Random is giving us much better Accuracy compared to decision tree. Therefore we will chose FR algorithm to apply on our testing data. Lets see below
+```{r finalpredictions}
+finalPrediction <- predict(forestmodel,testing_data, type='class')
+finalPrediction
+```
